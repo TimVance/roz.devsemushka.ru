@@ -48,6 +48,17 @@ return [
             'contentType' => 'application/json',
             'description' => 'Оформление заказа',
         ],
+        'sale/order_list' => [
+            'controller'  => '\Semushka\Api\Controllers\Sale@order_list',
+            'security'    => [
+                'auth' => [
+                    'required' => true,
+                    'type'     => 'token'
+                ],
+            ],
+            'contentType' => 'application/json',
+            'description' => 'Список заказов',
+        ],
         'sale/update' => [
             'controller'  => '\Semushka\Api\Controllers\Sale@update',
             'security'    => [

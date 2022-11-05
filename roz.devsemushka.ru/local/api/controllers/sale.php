@@ -8,18 +8,20 @@ use Bitrix\Main\Context,
     Bitrix\Sale\Basket,
     Bitrix\Sale\Delivery,
     Bitrix\Sale\PaySystem;
+use Bitrix\Main\Type\DateTime;
 
 class Sale
 {
 
-    private $iblock_offers  = 111; // Инфоблок товарных предложений
-    private $url_post       = 'https://widget.pochta.ru/api/pvz/index_public'; // Адрес апи почты
-    private $url_status_update       = 'https://semushka.fittin.ru/order/update/'; // Адрес апи для смены статуса
-    private $account_id     = '5613b7e4-d5ad-478a-af65-cb1f19e3c157'; // Токен для почты россии
+    private $iblock_offers = 111; // Инфоблок товарных предложений
+    private $url_post = 'https://widget.pochta.ru/api/pvz/index_public'; // Адрес апи почты
+    private $url_status_update = 'https://semushka.fittin.ru/order/update/'; // Адрес апи для смены статуса
+    private $account_id = '5613b7e4-d5ad-478a-af65-cb1f19e3c157'; // Токен для почты россии
     private $price_delivery = 250; // Стоимость доставки внутри МКАД
-    private $pay_system     = 12; // Стоимость доставки внутри МКАД
-    private $crm_token      = 'mz6p4vwzf6lvljgh6568iyq6bo27s0zk';
-    private $crm_event      = 'ONCRMDEALUPDATE';
+    private $pay_system = 12; // Стоимость доставки внутри МКАД
+    private $crm_token = 'mz6p4vwzf6lvljgh6568iyq6bo27s0zk';
+    private $crm_event = 'ONCRMDEALUPDATE';
+    private $list_stages = ["FINAL_INVOICE", "UC_3UTDJ9", "UC_2RKAZ1", "LOSE"];
 
     public function __construct()
     {
@@ -190,7 +192,7 @@ class Sale
     {
         \Bitrix\Main\Loader::includeModule("sale");
         \Bitrix\Main\Loader::includeModule("catalog");
-        //response()->json(request()->get("id"));
+
         $result["order"] = [
             "success" => false
         ];
@@ -357,6 +359,72 @@ class Sale
         response()->json($result);
     }
 
+    public function order_list()
+    {
+        \Bitrix\Main\Loader::includeModule("sale");
+        \Bitrix\Main\Loader::includeModule("catalog");
+        \Bitrix\Main\Loader::includeModule('crm');
+
+        $external_id = request()->get("external_id");
+        $create_from = request()->get("date_create_from");
+        $create_to   = request()->get("date_create_to");
+
+        $deals_params = [];
+        $deals_params['order'] = ['ID' => 'DESC'];
+        $deals_params['select'] = ["*", "UF_*"];
+
+        if (!empty($external_id)) {
+            $deals_params['filter']['UF_ID_ORDER'] = intval($external_id);
+        }
+        if (!empty($create_from) && !empty($create_to)) {
+            $from_date = DateTime::createFromTimestamp(strtotime($create_from." 00:00:00"));
+            $to_date = DateTime::createFromTimestamp(strtotime($create_to." 23:59:59"));
+            $deals_params['filter'] = [
+                "LOGIC" => "AND",
+                [
+                    '>=DATE_CREATE' => $from_date,
+                    '<=DATE_CREATE' => $to_date
+                ]
+            ];
+        }
+
+        $arDeals = \Bitrix\Crm\DealTable::getList($deals_params)->fetchAll();
+
+        $orders = [];
+        foreach ($arDeals as $deal) {
+            if (empty($deal["UF_ID_ORDER"])) continue;
+            if (!in_array($deal["STAGE_ID"], $this->list_stages)) continue;
+            $order_info = Order::load($deal["UF_ID_ORDER"]);
+            if (!empty($order_info->getId())) {
+                $items         = [];
+                $arProductRows = \CCrmDeal::LoadProductRows($deal["ID"]);
+                foreach ($arProductRows as $row) {
+                    $items[] = [
+                        "offer_id" => $this->getXmlIdByProductId($row["PRODUCT_ID"]),
+                        "external_product_id" => $row["PRODUCT_ID"],
+                        "price"    => self::getPrice($row["PRICE"]),
+                        "quantity" => $row["QUANTITY"],
+                        "subtotal" => self::getPrice(intval($row["QUANTITY"]) * intval($row["PRICE"])),
+                    ];
+                }
+                $orders[] = [
+                    "external_id" => $deal["UF_ID_ORDER"],
+                    "date_create" => $deal["DATE_CREATE"]->format("d.m.Y"),
+                    "price"       => self::getPrice($deal["OPPORTUNITY"]),
+                    "status"      => $deal["STAGE_ID"],
+                    "items"       => $items,
+                ];
+            }
+        }
+
+        $result = [
+            "success" => true,
+            "orders"  => $orders,
+        ];
+
+        response()->json($result);
+    }
+
     private static function getPrice($price)
     {
         return intval($price);
@@ -368,15 +436,6 @@ class Sale
         $event  = request()->get("event");
         $fields = request()->get("data");
         $id     = $fields["FIELDS"]["ID"];
-
-        /*
-        \Bitrix\Main\Loader::includeModule('crm');
-        $arProductRows = \CCrmDeal::LoadProductRows(143);
-        foreach ($arProductRows as $row) {
-            response()->json($row);
-        }
-        */
-
 
         if ($auth["application_token"] == $this->crm_token && $event == $this->crm_event && !empty($id)) {
             \Bitrix\Main\Loader::includeModule('crm');
