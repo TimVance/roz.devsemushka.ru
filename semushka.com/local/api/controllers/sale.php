@@ -392,6 +392,7 @@ class Sale
 
         $orders = [];
         foreach ($arDeals as $deal) {
+			//response()->json($deal);
             if (empty($deal["UF_ID_ORDER"])) continue;
             if (!in_array($deal["STAGE_ID"], $this->list_stages)) continue;
             $order_info = Order::load($deal["UF_ID_ORDER"]);
