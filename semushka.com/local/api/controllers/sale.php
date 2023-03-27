@@ -400,15 +400,17 @@ class Sale
                 $items         = [];
                 $arProductRows = \CCrmDeal::LoadProductRows($deal["ID"]);
                 foreach ($arProductRows as $row) {
-                    $items[] = [
-                        "offer_id" => $this->getXmlIdByProductId($row["PRODUCT_ID"]),
-                        "external_product_id" => $row["PRODUCT_ID"],
-                        "price"    => self::getPrice($row["PRICE"]),
-                        "quantity" => $row["QUANTITY"],
-                        "weight" => $this->getWeight($row["PRODUCT_ID"]),
-                        "subtotal" => self::getPrice(intval($row["QUANTITY"]) * intval($row["PRICE"])),
-                        "guid"     => $this->getGuiddByProductId($row["PRODUCT_ID"]),
-                    ];
+                    if (self::checkVesovoyTovar($row["PRODUCT_ID"])) {
+                        $items[] = [
+                            "offer_id"            => $this->getXmlIdByProductId($row["PRODUCT_ID"]),
+                            "external_product_id" => $row["PRODUCT_ID"],
+                            "price"               => self::getPrice($row["PRICE"]),
+                            "quantity"            => $row["QUANTITY"],
+                            "weight"              => $this->getWeight($row["PRODUCT_ID"]),
+                            "subtotal"            => self::getPrice(intval($row["QUANTITY"]) * intval($row["PRICE"])),
+                            "guid"                => $this->getGuiddByProductId($row["PRODUCT_ID"]),
+                        ];
+                    }
                 }
                 $orders[] = [
                     "external_id" => $deal["UF_ID_ORDER"],
@@ -464,6 +466,7 @@ class Sale
                                 "price"    => self::getPrice($row["PRICE"]),
                                 "quantity" => $row["QUANTITY"],
                                 "subtotal" => self::getPrice(intval($row["QUANTITY"]) * intval($row["PRICE"])),
+                                "guid"     => $this->getGuiddByProductId($row["PRODUCT_ID"]),
                                 "guid"     => $this->getGuiddByProductId($row["PRODUCT_ID"]),
                             ];
                         }
@@ -525,5 +528,17 @@ class Sale
             }
         }
         return $result;
+    }
+
+    public function checkVesovoyTovar($id) {
+        if (!empty($id)) {
+            $arSelect = array("ID", "NAME", "IBLOCK_ID", "XML_ID", "PROPERTY_vesovoytovar");
+            $arFilter = array("IBLOCK_ID" => $this->iblock_offers, "ACTIVE" => "Y", "ID" => $id);
+            $res      = \CIBlockElement::GetList(array(), $arFilter, false, false, $arSelect);
+            while ($ob = $res->GetNext()) {
+                return $ob["PROPERTY_VESOVOYTOVAR_VALUE"] == "Y";
+            }
+        }
+        return false;
     }
 }
