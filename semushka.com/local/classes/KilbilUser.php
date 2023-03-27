@@ -2,10 +2,10 @@
 
 namespace Semushka\Classes;
 
-class Kilbil
+class KilbilUser
 {
 
-    private static $kilbil_key        = 'b76ede2e0f2177cdb85016f32fa5a936'; // ключ
+    private static $kilbil_key        = '5c1a40154e6e9b755b3c3070205f5ddc'; // ключ
     private static $url_add_client    = 'https://bonus.kilbil.ru/load/addclient?h='; // url для регистрации
     private static $url_search_client = 'https://bonus.kilbil.ru/load/searchclient?h='; // url для поиск
 

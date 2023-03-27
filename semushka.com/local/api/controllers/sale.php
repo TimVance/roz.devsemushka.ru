@@ -21,7 +21,7 @@ class Sale
     private $pay_system = 12; // Стоимость доставки внутри МКАД
     private $crm_token = 'mz6p4vwzf6lvljgh6568iyq6bo27s0zk';
     private $crm_event = 'ONCRMDEALUPDATE';
-    private $list_stages = ["FINAL_INVOICE", "UC_3UTDJ9", "UC_2RKAZ1", "LOSE"];
+    private $list_stages = ["FINAL_INVOICE", "UC_3UTDJ9", "UC_2RKAZ1", "LOSE", "WON"];
 
     public function __construct()
     {
@@ -339,6 +339,7 @@ class Sale
                     "offer_id" => self::getXmlIdByProductId($basketItem->getProductId()),
                     "price"    => self::getPrice($basketItem->getPrice()),
                     "quantity" => $basketItem->getQuantity(),
+                    //"weight" => $basketItem->getWeight(),
                     "subtotal" => self::getPrice($basketItem->getFinalPrice()),
                 ];
             }
@@ -392,10 +393,9 @@ class Sale
 
         $orders = [];
         foreach ($arDeals as $deal) {
-			//response()->json($deal);
-            if (empty($deal["UF_ID_ORDER"])) continue;
+            if (empty(intval($deal["UF_ID_ORDER"]))) continue;
             if (!in_array($deal["STAGE_ID"], $this->list_stages)) continue;
-            $order_info = Order::load($deal["UF_ID_ORDER"]);
+            $order_info = Order::load(intval($deal["UF_ID_ORDER"]));
             if (!empty($order_info->getId())) {
                 $items         = [];
                 $arProductRows = \CCrmDeal::LoadProductRows($deal["ID"]);
@@ -405,6 +405,7 @@ class Sale
                         "external_product_id" => $row["PRODUCT_ID"],
                         "price"    => self::getPrice($row["PRICE"]),
                         "quantity" => $row["QUANTITY"],
+                        "weight" => $this->getWeight($row["PRODUCT_ID"]),
                         "subtotal" => self::getPrice(intval($row["QUANTITY"]) * intval($row["PRICE"])),
                         "guid"     => $this->getGuiddByProductId($row["PRODUCT_ID"]),
                     ];
@@ -495,6 +496,19 @@ class Sale
             $res      = \CIBlockElement::GetList(array(), $arFilter, false, false, $arSelect);
             while ($ob = $res->GetNext()) {
                 return $ob["XML_ID"];
+            }
+        }
+        return $result;
+    }
+
+    public function getWeight($id) {
+        $result = '';
+        if (!empty($id)) {
+            $arSelect = array("ID", "NAME", "IBLOCK_ID", "XML_ID", "PROPERTY_vesgr");
+            $arFilter = array("IBLOCK_ID" => $this->iblock_offers, "ACTIVE" => "Y", "ID" => $id);
+            $res      = \CIBlockElement::GetList(array(), $arFilter, false, false, $arSelect);
+            while ($ob = $res->GetNext()) {
+                return $ob["PROPERTY_VESGR_VALUE"];
             }
         }
         return $result;

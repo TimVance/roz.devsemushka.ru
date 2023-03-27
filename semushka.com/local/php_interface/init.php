@@ -18,17 +18,24 @@ $eventManager->addEventHandlerCompatible(
 );
 
 
+\Bitrix\Main\EventManager::getInstance()->addEventHandler(
+    'sale',
+    'OnSaleComponentOrderCreated',
+    [
+        '\Semushka\Classes\KilbilOrder',
+        'initOrder'
+    ]
+);
 
-
-if ($_REQUEST["admin"] == 'Y') {
+//if ($_REQUEST["admin"] == 'Y') {
     \Bitrix\Main\EventManager::getInstance()->addEventHandler(
         'main',
         'OnProlog',
         [
-            '\Semushka\Classes\Kilbil',
+            '\Semushka\Classes\KilbilUser',
             'initClient'
         ]
     );
-}
+//}
 
 if (Bitrix\Main\Loader::includeModule('artamonov.rest')) \Artamonov\Rest\Foundation\Core::getInstance()->run();
