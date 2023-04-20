@@ -414,6 +414,7 @@ class Sale
                 $orders[] = [
                     "external_id" => $deal["UF_ID_ORDER"],
                     "date_create" => $deal["DATE_CREATE"]->format("d.m.Y"),
+                    "date_modify" => $deal["DATE_MODIFY"]->format("d.m.Y"),
                     "price"       => self::getPrice($deal["OPPORTUNITY"]),
                     "status"      => $deal["STAGE_ID"],
                     "items"       => $items,
@@ -431,7 +432,7 @@ class Sale
 
     private static function getPrice($price)
     {
-        return intval($price);
+        return number_format((float)$price, 2, '.', '');
     }
 
     public function update()
@@ -465,7 +466,6 @@ class Sale
                                 "price"    => self::getPrice($row["PRICE"]),
                                 "quantity" => $row["QUANTITY"],
                                 "subtotal" => self::getPrice(intval($row["QUANTITY"]) * intval($row["PRICE"])),
-                                "guid"     => $this->getGuiddByProductId($row["PRODUCT_ID"]),
                                 "guid"     => $this->getGuiddByProductId($row["PRODUCT_ID"]),
                             ];
                         }

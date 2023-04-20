@@ -2,12 +2,10 @@
 
 namespace Semushka\Classes;
 
+use Bitrix\Sale;
+
 class KilbilUser
 {
-
-    private static $kilbil_key        = '5c1a40154e6e9b755b3c3070205f5ddc'; // ключ
-    private static $url_add_client    = 'https://bonus.kilbil.ru/load/addclient?h='; // url для регистрации
-    private static $url_search_client = 'https://bonus.kilbil.ru/load/searchclient?h='; // url для поиск
 
     /**
      * Инициализация пользователя в системе KilBil
@@ -16,13 +14,58 @@ class KilbilUser
      */
     function initClient()
     {
+        global $APPLICATION;
         $user = self::getUser();
         if (!empty($user["ID"])) {
             if (!empty($user["UF_CLIENT_ID"])) {
                 // Мы уже знаем id клиента в системе
+                if ($APPLICATION->GetCurPage() == '/order/') {
+                    $basket = \Bitrix\Sale\Basket::loadItemsForFUser(
+                        \Bitrix\Sale\Fuser::getId(),
+                        \Bitrix\Main\Context::getCurrent()->getSite()
+                    );
+                    $goods_data = [];
+                    foreach ($basket as $basketItem) {
+                        $goods_data[] = [
+                            "name" => $basketItem->getField('NAME'),
+                            "id" => $basketItem->getProductId(),
+                            "price" => $basketItem->getPrice(),
+                            "quantity" => $basketItem->getQuantity(),
+                            "total" => $basketItem->getFinalPrice(),
+                            "discounted_price" => $basketItem->getPrice(),
+                            "discounted_total" => $basketItem->getFinalPrice(),
+                            "code" => KilbilOrder::getXMLId($basketItem->getProductId())
+                        ];
+                    }
+                    $data = [
+                        "search_mode"  => 0,
+                        "search_value" => self::formatPhone($user["PERSONAL_PHONE"]),
+                        "goods_data" => $goods_data
+                    ];
+                    $responce = self::request(KilbilConfig::$url_search_client, $data);
+                    if (!empty($responce["client_id"]) && !empty($responce["max_bonus_out"])) {
+                        if(!\CSaleUserAccount::GetByUserID($user["ID"], "RUB")) {
+                            $arFields = Array("USER_ID" => $user["ID"], "CURRENCY" => "RUB", "CURRENT_BUDGET" => 0);
+                            \CSaleUserAccount::Add($arFields);
+                        }
+                        $balance = \CSaleUserAccount::GetByUserID($user["ID"], "RUB");
+                        if (intval($balance["CURRENT_BUDGET"]) != intval($responce["max_bonus_out"])) {
+                            $sum = intval($responce["max_bonus_out"]) - intval($balance["CURRENT_BUDGET"]);
+                            if ($sum !== 0) {
+                                \CSaleUserAccount::UpdateAccount(
+                                    $user["ID"],
+                                    $sum,
+                                    "RUB",
+                                    "KILBIL"
+                                );
+                            }
+                        }
+                        $_SESSION["max_bill_bonus_out"] = $responce["max_bill_bonus_out"];
+                    }
+                }
             } elseif (!empty($user["PERSONAL_PHONE"])) {
                 // Если у клиента еще нет id kilbil
-                $responce = self::request(self::$url_search_client, [
+                $responce = self::request(KilbilConfig::$url_search_client, [
                     "search_mode"  => 0,
                     "search_value" => self::formatPhone($user["PERSONAL_PHONE"])
                 ]);
@@ -47,7 +90,7 @@ class KilbilUser
      */
     private static function addclient($arUser)
     {
-        return self::request(self::$url_add_client, [
+        return self::request(KilbilConfig::$url_add_client, [
             "phone"       => self::formatPhone($arUser["PERSONAL_PHONE"]),
             "first_name"  => $arUser["NAME"],
             "last_name"   => $arUser["LAST_NAME"],
@@ -63,11 +106,11 @@ class KilbilUser
      * @param $data
      * @return bool|string
      */
-    private static function request($url, $data)
+    public static function request($url, $data)
     {
         $httpClient = new \Bitrix\Main\Web\HttpClient();
         return json_decode($httpClient->post(
-            $url . self::$kilbil_key,
+            $url . KilbilConfig::$kilbil_key,
             json_encode($data)
         ), true);
     }
@@ -88,7 +131,7 @@ class KilbilUser
      *
      * @return array|false
      */
-    private static function getUser()
+    public static function getUser()
     {
         global $USER;
         $rsUsers = \CUser::GetList(
